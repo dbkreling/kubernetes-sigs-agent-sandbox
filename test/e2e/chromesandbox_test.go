@@ -79,6 +79,16 @@ func chromeSandbox(namespace string) *sandboxv1beta1.Sandbox {
 					Name:            "chrome-sandbox",
 					Image:           imageName,
 					ImagePullPolicy: corev1.PullIfNotPresent,
+					ReadinessProbe: &corev1.Probe{
+						ProbeHandler: corev1.ProbeHandler{
+							Exec: &corev1.ExecAction{
+								Command: []string{"/chrome-sandbox-entrypoint", "probe"},
+							},
+						},
+						InitialDelaySeconds: 1,
+						PeriodSeconds:       1,
+						TimeoutSeconds:      2,
+					},
 				},
 			},
 		},
@@ -94,7 +104,7 @@ func TestRunChromeSandbox(t *testing.T) {
 }
 
 // BenchmarkChromeSandboxStartup measures the time for Chrome to start in a sandbox.
-// Run with: go test -bench=BenchmarkChromeSandboxStartup -benchtime=1x ./test/e2e/...
+// Run with: go test -v -run=^$ -bench=BenchmarkChromeSandboxStartup -benchtime=1x ./test/e2e/...
 // Compare results with: benchstat old.txt new.txt.
 func BenchmarkChromeSandboxStartup(b *testing.B) {
 	time.Sleep(2 * time.Second) // Give cluster a moment to settle, and to help us split the logs by time

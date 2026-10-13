@@ -24,13 +24,26 @@ The introduction of **`volumeClaimTemplates`** into the `SandboxTemplate` API so
 
 ---
 
+{{% alert title="Prerequisite: StorageClass" color="warning" %}}
+`volumeClaimTemplates` rely on a working [StorageClass](https://kubernetes.io/docs/concepts/storage/storage-classes/) in your cluster. If no `storageClassName` is specified in the template, Kubernetes uses the cluster's **default StorageClass**. Most managed Kubernetes distributions (GKE, EKS, AKS) and local development environments like KIND (which ships with the `standard` StorageClass backed by `rancher.io/local-path`) provide one out of the box.
+
+If your cluster does not have a default StorageClass, PVCs created from `volumeClaimTemplates` will remain in a `Pending` state. The PVC events will show:
+`no persistent volumes available for this claim and no storage class is set`.
+
+To check your cluster's StorageClasses, run:
+```bash
+kubectl get storageclass
+```
+The default StorageClass is marked with `(default)` in the output. If none is set, either annotate an existing StorageClass as default or explicitly set `storageClassName` in your `volumeClaimTemplates` spec.
+{{% /alert %}}
+
 ### Create a SandboxTemplate with Volume Claims
 To use a volume, you need to add the `volumeClaimTemplates` array to your `SandboxTemplate` specification and reference it in the `volumeMounts` of your container.
 
 Create a file named `sandbox-template-with-volume.yaml`:
 
 ```yaml
-apiVersion: extensions.agents.x-k8s.io/v1alpha1
+apiVersion: extensions.agents.x-k8s.io/v1beta1
 kind: SandboxTemplate
 metadata:
   name: stateful-sandbox-template
@@ -63,18 +76,37 @@ Apply the template to your Kubernetes cluster:
 kubectl apply -f sandbox-template-with-volume.yaml
 ```
 
+### Create a SandboxWarmPool referencing the template
+`SandboxClaim` resources check out sandboxes from a `SandboxWarmPool`, which is in turn backed by a `SandboxTemplate`. Create a file named `sandbox-warmpool.yaml`:
+
+```yaml
+apiVersion: extensions.agents.x-k8s.io/v1beta1
+kind: SandboxWarmPool
+metadata:
+  name: stateful-sandbox-warmpool
+spec:
+  replicas: 1
+  sandboxTemplateRef:
+    name: stateful-sandbox-template
+```
+
+Apply the warm pool:
+```bash
+kubectl apply -f sandbox-warmpool.yaml
+```
+
 ### Spawn a Sandbox using a SandboxClaim
-Now that your template is registered, you can spawn an actual sandbox instance by creating a `SandboxClaim`. 
+Now that your warm pool is registered, you can spawn an actual sandbox instance by creating a `SandboxClaim`.
 
 Create a file named `sandbox-claim.yaml`:
 ```yaml
-apiVersion: extensions.agents.x-k8s.io/v1alpha1
+apiVersion: extensions.agents.x-k8s.io/v1beta1
 kind: SandboxClaim
 metadata:
   name: my-stateful-sandbox
 spec:
-  sandboxTemplateRef:
-    name: stateful-sandbox-template
+  warmPoolRef:
+    name: stateful-sandbox-warmpool
 ```
 
 Apply the claim:
@@ -135,7 +167,7 @@ kubectl exec -it my-stateful-sandbox -- cat /data/evidence.txt
 
 ### Python SDK
 
-If you want to use `volumeClaimTemplates` with `k8s_agent_sandbox`, you need to make sure that you re-use the existing sandbox and delete it manually. To run the following an example Python script, you need to build a custom Docker image and apply the SandboxTemplate from [here](https://github.com/kubernetes-sigs/agent-sandbox/tree/main/site/content/docs/volumes/volume-claim-template/source).
+If you want to use `volumeClaimTemplates` with `k8s_agent_sandbox`, you need to make sure that you re-use the existing sandbox and delete it manually. To run the following example Python script, you need to build a custom Docker image, apply the SandboxTemplate from [the example source folder](https://github.com/kubernetes-sigs/agent-sandbox/tree/main/site/content/docs/volumes/volume-claim-template/source), and create a SandboxWarmPool named `simple-sandbox-pool` that references it.
 
 Install `k8s_agent_sandbox`:
 
@@ -152,7 +184,7 @@ validation_message = "volume validation"
 
 client = SandboxClient()
 
-sandbox1 = client.create_sandbox("simple-sandbox-template")
+sandbox1 = client.create_sandbox("simple-sandbox-pool")
 response1 = sandbox1.commands.run(f"sh -c \"echo '{validation_message}' > /data/volume_validation.txt\"")
 print(f"Claim Name: {sandbox1.claim_name}")
 

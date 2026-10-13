@@ -7,7 +7,7 @@ name = "k8s-agent-sandbox"
 dynamic = ["version"]
 description = "A client library to interact with the Agentic Sandbox on Kubernetes."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.11"
 classifiers = [
     "Programming Language :: Python :: 3",
     "License :: OSI Approved :: Apache Software License",
@@ -16,6 +16,7 @@ classifiers = [
 dependencies = [
     "kubernetes",
     "requests",
+    "urllib3",
     "pydantic",
     "prometheus-client",
 ]
@@ -37,6 +38,9 @@ exclude = [
     "k8s_agent_sandbox.*.test*"
 ]
 
+[tool.setuptools.package-data]
+"k8s_agent_sandbox" = ["py.typed"]
+
 [tool.setuptools.exclude-package-data]
 # setuptools_scm automatically bundles tracked files as package data.
 # We need to explicitly exclude test directories and files from being bundled.
@@ -49,6 +53,14 @@ root = "../../.."
 async = [
     "httpx",
     "kubernetes_asyncio<36.1.1",
+]
+# Required for the sandboxd runtime (pod tunnel or direct in-cluster):
+# command execution runs over gRPC ProcessService. The generated process stubs
+# validate a protobuf runtime of at least 7.36.1. The legacy python-runtime
+# needs none of this.
+grpc = [
+    "grpcio>=1.83.0",
+    "protobuf>=7.36.1",
 ]
 test = [
     "pytest",
@@ -66,3 +78,15 @@ tracing = [
 
 [tool.pytest.ini_options]
 testpaths = ["k8s_agent_sandbox"]
+
+[tool.mypy]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+show_error_codes = true
+
+[[tool.mypy.overrides]]
+module = [
+  "yaml",
+]
+ignore_missing_imports = true

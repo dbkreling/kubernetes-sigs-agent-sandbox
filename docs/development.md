@@ -48,6 +48,14 @@ Whenever any changes are made to the `api/` folder or the `extensions/`, you may
 make generate-api-docs
 ```
 
+### Regenerate controller metrics documentation
+
+[`docs/metrics.md`](metrics.md) is generated from the Prometheus metric definitions in [`internal/metrics/`](../internal/metrics/). Regenerate it whenever you add, rename, or relabel a controller metric.
+
+```sh
+make generate-metrics-docs
+```
+
 ## Deploying to cluster
 
 #### Deploying to local `kind` cluster
@@ -64,6 +72,26 @@ This command will:
 2.  Build the controller's container image.
 3.  Push the image to the `kind` cluster.
 4.  Deploy the controller to the `kind` cluster.
+
+To deploy the latest **published** images from `registry.k8s.io/agent-sandbox/`
+instead of building them locally (no container build required):
+
+```sh
+make deploy-kind SKIP_BUILD=true
+```
+
+The published image tag is resolved automatically from `registry.k8s.io` at
+deploy time (the newest stable `vX.Y.Z`, so no per-release bump is needed);
+pin a specific release with `IMAGE_TAG`:
+
+```sh
+make deploy-kind SKIP_BUILD=true IMAGE_TAG=v0.5.4
+```
+
+Note that only `agent-sandbox-controller` is deployed by `deploy-kind` itself;
+any runtime images referenced by your Sandbox resources (e.g. `chrome-sandbox`,
+`python-runtime-sandbox`) must be pullable from a registry the cluster can
+reach.
 
 You can verify that the controller is running by checking the pods in the `agent-sandbox-system` namespace:
 
@@ -151,6 +179,8 @@ The project uses [Prow](https://prow.k8s.io) for CI/CD.
 The configuration for these jobs is managed in the [kubernetes/test-infra](https://github.com/kubernetes/test-infra) repository, see [`config/jobs/kubernetes-sigs/agent-sandbox`](https://github.com/kubernetes/test-infra/tree/master/config/jobs/kubernetes-sigs/agent-sandbox).
 
 The CI scripts are located in the [`dev/ci/`](../dev/ci/) directory.
+
+Running `dev/ci/presubmits/test-autogen-up-to-date` locally requires a clean working tree: commit or stash (`git stash -u`) your changes first.
 
 Note that presubmits are triggered on every push to the `main` branch, and postsubmits are triggered on every merge to the `main` branch.
 
